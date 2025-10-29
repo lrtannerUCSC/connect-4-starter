@@ -31,7 +31,7 @@ public:
 private:
     Bit *       PieceForPlayer(const int playerNumber);
     Player*     ownerAt(int index ) const;
-    int         negamax(std::string& state, int depth, int playerColor);
+    int         negamax(std::string& state, int depth, int alpha, int beta, int playerColor);
 
     Grid*       _grid;
 };

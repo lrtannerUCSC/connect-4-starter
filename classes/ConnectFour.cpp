@@ -261,7 +261,7 @@ void ConnectFour::updateAI()
         if (lowestEmptyRow != -1) {
             int index = lowestEmptyRow * 7 + col;
             state[index] = '2';  // AI move
-            int moveVal = -negamax(state, 0, HUMAN_PLAYER);
+            int moveVal = -negamax(state, 0, -1000, 1000, HUMAN_PLAYER);
             state[index] = '0';
             
             if (moveVal > bestVal) {
@@ -363,7 +363,7 @@ inline int evaluateAIBoardConnectFour(const std::string& state) {
 //
 // player is the current player's number (AI or human)
 //
-int ConnectFour::negamax(std::string& state, int depth, int playerColor) 
+int ConnectFour::negamax(std::string& state, int depth, int alpha, int beta, int playerColor) 
 {
 
     if (depth >= 6) {
@@ -405,8 +405,12 @@ int ConnectFour::negamax(std::string& state, int depth, int playerColor)
             state[index] = (playerColor == HUMAN_PLAYER) ? '1' : '2';
             
             // Recursive call with opposite player
-            int moveVal = -negamax(state, depth + 1, -playerColor);
+            int moveVal = -negamax(state, depth + 1, -beta, -alpha, -playerColor);
             bestVal = std::max(bestVal, moveVal);
+            alpha = std::max(alpha, moveVal);
+            if (alpha >= beta) {
+                break;
+            }
             
             // Undo the move
             state[index] = '0';
