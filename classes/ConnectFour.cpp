@@ -60,7 +60,7 @@ bool ConnectFour::actionForEmptyHolder(BitHolder &holder)
     }
     
     int lowestEmptyRow = -1;
-    for (int row = _gameOptions.rowX - 1; row >= 0; row--) {
+    for (int row = _gameOptions.rowY - 1; row >= 0; row--) {
         ChessSquare* currentSquare = _grid->getSquare(targetCol, row);
         if (currentSquare && !currentSquare->bit()) {
             lowestEmptyRow = row;
@@ -115,7 +115,7 @@ void ConnectFour::stopGame()
 //
 Player* ConnectFour::ownerAt(int index ) const
 {
-    auto square = _grid->getSquare(index % 7, index / 7); // This might be backwards
+    auto square = _grid->getSquare(index % 7, index / 7);
     if (!square || !square->bit()) {
         return nullptr;
     }
@@ -124,8 +124,8 @@ Player* ConnectFour::ownerAt(int index ) const
 
 Player* ConnectFour::checkForWinner()
 {
-    int cols = _gameOptions.rowX = 7;
-    int rows = _gameOptions.rowY = 6;
+    int cols = 7;
+    int rows = 6;
     
     // Check horizontal (4 in a row) - scan rows 0-5, columns 0-3
     for (int row = 0; row < rows; row++) {
@@ -248,9 +248,9 @@ void ConnectFour::updateAI()
     std::string state = stateString();
 
     // Only use the column-based approach (remove the forEachSquare part)
-    for (int col = 0; col < 7; col++) {  // Fixed: 7 columns, not rowY
+    for (int col = 0; col < 7; col++) {
         int lowestEmptyRow = -1;
-        for (int row = 5; row >= 0; row--) {  // Fixed: rows go from 5 to 0
+        for (int row =_gameOptions.rowY - 1; row >= 0; row--) {
             int index = row * 7 + col;
             if (state[index] == '0') {
                 lowestEmptyRow = row;
@@ -366,9 +366,9 @@ inline int evaluateAIBoardConnectFour(const std::string& state) {
 int ConnectFour::negamax(std::string& state, int depth, int alpha, int beta, int playerColor) 
 {
 
-    if (depth >= 6) {
-        return 0;
-    }
+    // if (depth >= 6) {
+    //     return 0;
+    // }
 
     int score = evaluateAIBoardConnectFour(state);
 
@@ -389,7 +389,7 @@ int ConnectFour::negamax(std::string& state, int depth, int alpha, int beta, int
     for (int col = 0; col < 7; col++) {
         // Find the lowest empty row in this column
         int lowestEmptyRow = -1;
-        for (int row = 5; row >= 0; row--) {
+        for (int row = _gameOptions.rowY - 1; row >= 0; row--) {
             int index = row * 7 + col;
             if (state[index] == '0') {
                 lowestEmptyRow = row;
