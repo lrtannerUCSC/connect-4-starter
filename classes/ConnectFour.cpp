@@ -115,7 +115,7 @@ void ConnectFour::stopGame()
 //
 Player* ConnectFour::ownerAt(int index ) const
 {
-    auto square = _grid->getSquare(index % 7, index / 6); // This might be backwards
+    auto square = _grid->getSquare(index % 7, index / 7); // This might be backwards
     if (!square || !square->bit()) {
         return nullptr;
     }
@@ -124,15 +124,65 @@ Player* ConnectFour::ownerAt(int index ) const
 
 Player* ConnectFour::checkForWinner()
 {
-    static const int kWinningTriples[8][3] =  { {0,1,2}, {3,4,5}, {6,7,8},  // rows
-                                                {0,3,6}, {1,4,7}, {2,5,8},  // cols
-                                                {0,4,8}, {2,4,6} };         // diagonals
-    for( int i=0; i<8; i++ ) {
-        const int *triple = kWinningTriples[i];
-        Player *player = ownerAt(triple[0]);
-        if( player && player == ownerAt(triple[1]) && player == ownerAt(triple[2]) )
-            return player;
+    int cols = _gameOptions.rowX = 7;
+    int rows = _gameOptions.rowY = 6;
+    
+    // Check horizontal (4 in a row) - scan rows 0-5, columns 0-3
+    for (int row = 0; row < rows; row++) {
+        for (int col = 0; col < cols - 3; col++) {
+            Player* player = ownerAt(row * cols + col);
+            if (player && 
+                player == ownerAt(row * cols + col + 1) && 
+                player == ownerAt(row * cols + col + 2) && 
+                player == ownerAt(row * cols + col + 3)) {
+                std::cout << "Winner" << std::endl;
+                return player;
+            }
+        }
     }
+    
+    // Check vertical (4 in a column) - scan rows 0-2, columns 0-6
+    for (int col = 0; col < cols; col++) {
+        for (int row = 0; row < rows - 3; row++) {
+            Player* player = ownerAt(row * cols + col);
+            if (player && 
+                player == ownerAt((row + 1) * cols + col) && 
+                player == ownerAt((row + 2) * cols + col) && 
+                player == ownerAt((row + 3) * cols + col)) {
+                std::cout << "Winner" << std::endl;
+                return player;
+            }
+        }
+    }
+    
+    // Check diagonal (top-left to bottom-right) - scan rows 0-2, columns 0-3
+    for (int col = 0; col < cols - 3; col++) {
+        for (int row = 0; row < rows - 3; row++) {
+            Player* player = ownerAt(row * cols + col);
+            if (player && 
+                player == ownerAt((row + 1) * cols + (col + 1)) && 
+                player == ownerAt((row + 2) * cols + (col + 2)) && 
+                player == ownerAt((row + 3) * cols + (col + 3))) {
+                std::cout << "Winner" << std::endl;
+                return player;
+            }
+        }
+    }
+    
+    // Check diagonal (top-right to bottom-left) - scan rows 0-2, columns 3-6
+    for (int col = 3; col < cols; col++) {
+        for (int row = 0; row < rows - 3; row++) {
+            Player* player = ownerAt(row * cols + col);
+            if (player && 
+                player == ownerAt((row + 1) * cols + (col - 1)) && 
+                player == ownerAt((row + 2) * cols + (col - 2)) && 
+                player == ownerAt((row + 3) * cols + (col - 3))) {
+                std::cout << "Winner" << std::endl;
+                return player;
+            }
+        }
+    }
+    
     return nullptr;
 }
 
