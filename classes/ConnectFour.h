@@ -25,7 +25,7 @@ public:
 
     // AI methods
     void        updateAI() override;
-    bool        gameHasAI() override { return false; } // Set to true when AI is implemented
+    bool        gameHasAI() override { return true; } // Set to true when AI is implemented
     Grid* getGrid() override { return _grid; }
 
 private:
