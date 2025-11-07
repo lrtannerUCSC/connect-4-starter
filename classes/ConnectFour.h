@@ -32,6 +32,8 @@ private:
     Bit *       PieceForPlayer(const int playerNumber);
     Player*     ownerAt(int index ) const;
     int         negamax(std::string& state, int depth, int alpha, int beta, int playerColor);
-
+    int         evaluateAIBoardConnectFour(const std::string& state);
+    int         evaluatePosition(const std::string& state, int row, int col);
+    int         evaluateSegment(const std::string& state, int startRow, int startCol, int rowDelta, int colDelta);
     Grid*       _grid;
 };

@@ -241,39 +241,53 @@ void ConnectFour::setStateString(const std::string &s)
 //
 // this is the function that will be called by the AI
 //
-void ConnectFour::updateAI() 
+void ConnectFour::updateAI()
 {
-    int bestVal = -1000;
-    BitHolder* bestMove = nullptr;
+    // We will use the above negamax with a depth limit.
     std::string state = stateString();
+    int bestVal = -1000000;
+    int bestCol = -1;
+    int COLS = 7;
+    int ROWS = 6;
 
-    // Only use the column-based approach (remove the forEachSquare part)
-    for (int col = 0; col < 7; col++) {
+    // Try columns; prefer center when values tie
+    const int order[7] = {3, 4, 2, 5, 1, 6, 0};
+
+    for (int oi = 0; oi < COLS; ++oi) {
+        int col = order[oi];
+
         int lowestEmptyRow = -1;
-        for (int row =_gameOptions.rowY - 1; row >= 0; row--) {
-            int index = row * 7 + col;
-            if (state[index] == '0') {
-                lowestEmptyRow = row;
-                break;
-            }
+        for (int row = ROWS - 1; row >= 0; --row) {
+            int idx = row*COLS + col;
+            if (state[idx] == '0') { lowestEmptyRow = row; break; }
         }
-        
-        if (lowestEmptyRow != -1) {
-            int index = lowestEmptyRow * 7 + col;
-            state[index] = '2';  // AI move
-            int moveVal = -negamax(state, 0, -1000, 1000, HUMAN_PLAYER);
-            state[index] = '0';
-            
-            if (moveVal > bestVal) {
-                bestMove = _grid->getSquare(col, lowestEmptyRow);
-                bestVal = moveVal;
-            }
+        if (lowestEmptyRow == -1) continue;
+
+        int idx = lowestEmptyRow*COLS + col;
+        // simulate AI placing '2'
+        state[idx] = '2';
+
+        // now it's human to move -> player = -1 (human). negate returned value to AI perspective.
+        int moveVal = -negamax(state, 0, -1000000, 1000000, -1);
+
+        // undo
+        state[idx] = '0';
+
+        if (moveVal > bestVal) {
+            bestVal = moveVal;
+            bestCol = col;
         }
     }
 
-    // Make the best move
-    if(bestMove) {
-        actionForEmptyHolder(*bestMove);
+    if (bestCol != -1) {
+        // actually make the move on the game grid (drop to lowest empty)
+        for (int row = ROWS - 1; row >= 0; --row) {
+            ChessSquare* square = _grid->getSquare(bestCol, row);
+            if (square && !square->bit()) {
+                actionForEmptyHolder(*square);
+                break;
+            }
+        }
     }
 }
 
@@ -281,141 +295,190 @@ inline bool isAIBoardFullConnectFour(const std::string& state) {
     return state.find('0') == std::string::npos;
 }
 
-inline int evaluateAIBoardConnectFour(const std::string& state) {
+// ---------- helper to check wins for a specific char -------------------
+static bool checkFourInARowForPlayer(const std::string &state, char p)
+{
+    const int COLS = 7;
+    const int ROWS = 6;
+
+    // horizontal
+    for (int r = 0; r < ROWS; ++r) {
+        for (int c = 0; c < COLS - 3; ++c) {
+            int i = r*COLS + c;
+            if (state[i] == p && state[i+1] == p && state[i+2] == p && state[i+3] == p) return true;
+        }
+    }
+    // vertical
+    for (int c = 0; c < COLS; ++c) {
+        for (int r = 0; r < ROWS - 3; ++r) {
+            int i = r*COLS + c;
+            if (state[i] == p && state[i+COLS] == p && state[i+2*COLS] == p && state[i+3*COLS] == p) return true;
+        }
+    }
+    // diag TL->BR
+    for (int r = 0; r < ROWS - 3; ++r) {
+        for (int c = 0; c < COLS - 3; ++c) {
+            int i = r*COLS + c;
+            if (state[i] == p && state[i+COLS+1] == p && state[i+2*(COLS+1)] == p && state[i+3*(COLS+1)] == p) return true;
+        }
+    }
+    // diag TR->BL
+    for (int r = 0; r < ROWS - 3; ++r) {
+        for (int c = 3; c < COLS; ++c) {
+            int i = r*COLS + c;
+            if (state[i] == p && state[i+COLS-1] == p && state[i+2*(COLS-1)] == p && state[i+3*(COLS-1)] == p) return true;
+        }
+    }
+    return false;
+}
+
+int ConnectFour::evaluateAIBoardConnectFour(const std::string& state) {
     const int COLS = 7;
     const int ROWS = 6;
     
-    // Check horizontal (4 in a row)
-    for (int row = 0; row < ROWS; row++) {
-        for (int col = 0; col < COLS - 3; col++) {
-            int idx1 = row * COLS + col;
-            int idx2 = row * COLS + col + 1;
-            int idx3 = row * COLS + col + 2;
-            int idx4 = row * COLS + col + 3;
-            
-            char first = state[idx1];
-            if (first != '0' && 
-                first == state[idx2] && 
-                first == state[idx3] && 
-                first == state[idx4]) {
-                return 10; // Someone won
-            }
+    // Terminal states
+    if (checkFourInARowForPlayer(state, '2')) {
+        return 100000; // AI win
+    }
+    if (checkFourInARowForPlayer(state, '1')) {
+        return -100000; // Human win
+    }
+    
+    // Pattern-based scoring
+    int score = 0;
+    
+    // Check all possible segments and score partial patterns
+    for (int r = 0; r < ROWS; ++r) {
+        for (int c = 0; c < COLS; ++c) {
+
+            score += evaluatePosition(state, r, c);
         }
     }
     
-    // Check vertical (4 in a column)
-    for (int col = 0; col < COLS; col++) {
-        for (int row = 0; row < ROWS - 3; row++) {
-            int idx1 = row * COLS + col;
-            int idx2 = (row + 1) * COLS + col;
-            int idx3 = (row + 2) * COLS + col;
-            int idx4 = (row + 3) * COLS + col;
-            
-            char first = state[idx1];
-            if (first != '0' && 
-                first == state[idx2] && 
-                first == state[idx3] && 
-                first == state[idx4]) {
-                return 10; // Someone won
-            }
-        }
-    }
-    
-    // Check diagonal (top-left to bottom-right)
-    for (int col = 0; col < COLS - 3; col++) {
-        for (int row = 0; row < ROWS - 3; row++) {
-            int idx1 = row * COLS + col;
-            int idx2 = (row + 1) * COLS + col + 1;
-            int idx3 = (row + 2) * COLS + col + 2;
-            int idx4 = (row + 3) * COLS + col + 3;
-            
-            char first = state[idx1];
-            if (first != '0' && 
-                first == state[idx2] && 
-                first == state[idx3] && 
-                first == state[idx4]) {
-                return 10; // Someone won
-            }
-        }
-    }
-    
-    // Check diagonal (top-right to bottom-left)
-    for (int col = 3; col < COLS; col++) {
-        for (int row = 0; row < ROWS - 3; row++) {
-            int idx1 = row * COLS + col;
-            int idx2 = (row + 1) * COLS + col - 1;
-            int idx3 = (row + 2) * COLS + col - 2;
-            int idx4 = (row + 3) * COLS + col - 3;
-            
-            char first = state[idx1];
-            if (first != '0' && 
-                first == state[idx2] && 
-                first == state[idx3] && 
-                first == state[idx4]) {
-                return 10; // Someone won
-            }
-        }
-    }
-    
-    return 0; // No winner
+    return score;
 }
 
-//
-// player is the current player's number (AI or human)
-//
-int ConnectFour::negamax(std::string& state, int depth, int alpha, int beta, int playerColor) 
-{
-
-    // if (depth >= 6) {
-    //     return 0;
-    // }
-
-    int score = evaluateAIBoardConnectFour(state);
-
-    // Check if AI wins, human wins, or draw
-    if(score) { 
-        // A winning state is a loss for the player whose turn it is.
-        // The previous player made the winning move.
-        return -score; 
-    }
-
-    if(isAIBoardFullConnectFour(state)) {
-        return 0; // Draw
-    }
-
-    int bestVal = -1000;
+// Helper function to evaluate patterns at a specific position
+int ConnectFour::evaluatePosition(const std::string& state, int row, int col) {
+    const int COLS = 7;
+    const int ROWS = 6;
+    int score = 0;
     
-    // Try each column for possible moves
-    for (int col = 0; col < 7; col++) {
-        // Find the lowest empty row in this column
+    // Check horizontal right
+    if (col <= COLS - 4) {
+        score += evaluateSegment(state, row, col, 0, 1);
+    }
+    
+    // Check vertical down
+    if (row <= ROWS - 4) {
+        score += evaluateSegment(state, row, col, 1, 0);
+    }
+    
+    // Check diagonal down-right
+    if (row <= ROWS - 4 && col <= COLS - 4) {
+        score += evaluateSegment(state, row, col, 1, 1);
+    }
+    
+    // Check diagonal down-left
+    if (row <= ROWS - 4 && col >= 3) {
+        score += evaluateSegment(state, row, col, 1, -1);
+    }
+    
+    return score;
+}
+
+// Evaluate a 4-cell segment and return its score
+int ConnectFour::evaluateSegment(const std::string& state, int startRow, int startCol, int rowDelta, int colDelta) {
+    int aiCount = 0;
+    int humanCount = 0;
+    int emptyCount = 0;
+    
+    for (int i = 0; i < 4; i++) {
+        int r = startRow + i * rowDelta;
+        int c = startCol + i * colDelta;
+        int idx = r * 7 + c;
+        
+        if (state[idx] == '2') {
+            aiCount++;
+        } else if (state[idx] == '1') {
+            humanCount++;
+        } else {
+            emptyCount++;
+        }
+    }
+
+    if (aiCount > 0 && humanCount > 0) {
+        return 0;
+    }
+    
+    if (aiCount > 0) {
+        if (aiCount == 2 && emptyCount == 2) return 10;
+        if (aiCount == 3 && emptyCount == 1) return 100;
+    }
+    
+    if (humanCount > 0) {
+        if (humanCount == 2 && emptyCount == 2) return -10;
+        if (humanCount == 3 && emptyCount == 1) return -100;
+    }
+    
+    return 0;
+}
+
+
+int ConnectFour::negamax(std::string& state, int depth, int alpha, int beta, int player)
+{
+    // player: +1 = AI to move, -1 = human to move
+
+    int eval = evaluateAIBoardConnectFour(state);
+    if (eval != 0) {
+        return (player == 1) ? eval - depth : -eval + depth;
+    }
+
+    if (isAIBoardFullConnectFour(state)) {
+        return 0; // draw
+    }
+
+    if (depth >= 10) {
+        return 0;
+    }
+
+    int best = -1000000;
+
+    const int COLS = 7;
+    const int ROWS = 6;
+
+    const int order[7] = {3, 4, 2, 5, 1, 6, 0};
+
+    for (int oi = 0; oi < COLS; ++oi) {
+        int col = order[oi];
+
+        // find lowest empty row in column
         int lowestEmptyRow = -1;
-        for (int row = _gameOptions.rowY - 1; row >= 0; row--) {
-            int index = row * 7 + col;
-            if (state[index] == '0') {
+        for (int row = ROWS - 1; row >= 0; --row) {
+            int idx = row*COLS + col;
+            if (state[idx] == '0') {
                 lowestEmptyRow = row;
                 break;
             }
         }
-        
-        // If valid move found in this column
-        if (lowestEmptyRow != -1) {
-            int index = lowestEmptyRow * 7 + col;
-            
-            // Make the move - '1' for human, '2' for AI
-            state[index] = (playerColor == HUMAN_PLAYER) ? '1' : '2';
-            
-            // Recursive call with opposite player
-            int moveVal = -negamax(state, depth + 1, -beta, -alpha, -playerColor);
-            bestVal = std::max(bestVal, moveVal);
-            alpha = std::max(alpha, moveVal);
-            if (alpha >= beta) {
-                break;
-            }
-            
-            // Undo the move
-            state[index] = '0';
+        if (lowestEmptyRow == -1) continue;
+
+        int idx = lowestEmptyRow*COLS + col;
+        // place piece depending on player
+        state[idx] = (player == 1) ? '2' : '1';
+
+        // recursively search: flip player and negate score
+        int val = -negamax(state, depth + 1, -beta, -alpha, -player);
+
+        // undo
+        state[idx] = '0';
+
+        if (val > best) best = val;
+        if (val > alpha) alpha = val;
+        if (alpha >= beta) {
+            break; // beta cutoff
         }
     }
 
-    return bestVal;
+    return best;
 }
